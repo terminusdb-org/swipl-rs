@@ -30,7 +30,7 @@ pub fn activate_main() -> EngineActivation<'static> {
 
 /// Check if SWI-Prolog has been initialized.
 pub fn is_swipl_initialized() -> bool {
-    unsafe { PL_is_initialised(std::ptr::null_mut(), std::ptr::null_mut()) != 0 }
+    (unsafe { PL_is_initialised(std::ptr::null_mut(), std::ptr::null_mut()) } as i32) != 0
 }
 
 /// Panic if SWI-Prolog has not been initialized.
@@ -96,7 +96,7 @@ pub fn initialize_swipl_with_state(state: &'static [u8]) -> Option<EngineActivat
     // https://www.swi-prolog.org/pldoc/doc_for?object=c(%27PL_set_resource_db_mem%27)
     let result = unsafe { PL_set_resource_db_mem(state.as_ptr(), state.len()) };
 
-    if result != TRUE as i32 {
+    if (result as i32) == 0 {
         return None;
     }
 
@@ -193,19 +193,23 @@ pub unsafe fn register_foreign_in_module(
         flags |= PL_FA_NONDETERMINISTIC;
     }
 
-    // an unfortunate need for transmute to make the fli eat the pointer
-    let converted_function_ptr = std::mem::transmute(function_ptr);
+    // Convert to whatever pl_function_t is for the active SWI-Prolog.
+    //
+    // SWI-Prolog 10 defines pl_function_t as void*; older versions used a function pointer type.
+    // We keep a single call site by transmuting into the bindgen-generated type.
+    let converted_function_ptr: pl_function_t = std::mem::transmute(function_ptr);
     let c_module_ptr = c_module
         .as_ref()
         .map(|m| m.as_ptr())
         .unwrap_or(std::ptr::null_mut());
 
-    PL_register_foreign_in_module(
+    (PL_register_foreign_in_module(
         c_module_ptr,
         c_name.as_ptr(),
         arity as c_int,
-        Some(converted_function_ptr),
+        converted_function_ptr,
         flags.try_into().unwrap(),
         c_meta.map(|m| m.as_ptr()).unwrap_or_else(std::ptr::null),
-    ) == 1
+    ) as i32)
+        != 0
 }

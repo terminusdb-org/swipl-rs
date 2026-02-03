@@ -41,7 +41,7 @@ term_getable! {
                                                  flags) };
 
 
-        if result == 0 {
+        if (result as i32) == 0 {
             None
         }
         else {

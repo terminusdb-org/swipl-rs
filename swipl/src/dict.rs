@@ -32,14 +32,25 @@ impl<A: IntoAtom> From<A> for Key {
     }
 }
 
-const INT_SHIFT: u8 = (std::mem::size_of::<fli::atom_t>() * 8 - 7) as u8;
-
 fn int_to_atom_t(val: u64) -> fli::atom_t {
-    if (val >> INT_SHIFT) != 0 {
-        panic!("val {} is too large to be converted to an atom_t", val);
+    // SWI-Prolog represents integer dict keys as a special kind of atom_t.
+    // Use the runtime helper rather than relying on internal tagging details.
+    if val > i64::MAX as u64 {
+        panic!("val {} is too large to be converted to a dict key", val);
     }
 
-    (val << 7 | 0x3) as fli::atom_t
+    unsafe { fli::_PL_cons_small_int(val as i64) }
+}
+
+fn atom_t_to_small_int(val: fli::atom_t) -> Option<u64> {
+    // SWI-Prolog uses a tagged atom_t representation for integer dict keys.
+    // When this tag is present, the integer value is stored in the upper bits.
+    let raw = val as u64;
+    if (raw & 0x7f) == 0x3 {
+        Some(raw >> 7)
+    } else {
+        None
+    }
 }
 
 impl Key {
@@ -247,7 +258,7 @@ unsafe impl<'a> Unifiable for DictBuilder<'a> {
         let dict_term = context.new_term_ref();
         self.put(&dict_term);
 
-        let result = unsafe { fli::PL_unify(dict_term.term_ptr(), term.term_ptr()) != 0 };
+        let result = (unsafe { fli::PL_unify(dict_term.term_ptr(), term.term_ptr()) } as i32) != 0;
         unsafe {
             dict_term.reset();
         };
@@ -268,24 +279,56 @@ impl<'a> Term<'a> {
         self.assert_term_handling_possible();
         let context = unsafe { unmanaged_engine_context() };
         let (key_atom, alloc) = key.atom_ptr();
-        let term = context.new_term_ref();
 
-        let get_result =
-            unsafe { fli::PL_get_dict_key(key_atom, self.term_ptr(), term.term_ptr()) != 0 };
-        std::mem::drop(alloc); // purely to get rid of the never-read warning
+        // PL_get_dict_key/3 only accepts atom keys. Integer keys are encoded using a tagged
+        // atom_t representation and must be looked up via get_dict/3.
+        let result = if let Some(int_key) = atom_t_to_small_int(key_atom) {
+            let frame = context.open_frame();
+            let key_term = frame.new_term_ref();
+            let value_term = frame.new_term_ref();
+            key_term.unify(int_key).unwrap();
 
-        let result = if unsafe { fli::pl_default_exception() != 0 } {
-            Err(PrologError::Exception)
-        } else if get_result {
-            term.get()
+            let query = frame.open(pred! {get_dict/3}, [&key_term, self, &value_term]);
+            let result = match query.next_solution() {
+                Ok(_) => {
+                    query.cut();
+                    value_term.get()
+                }
+                Err(PrologError::Failure) => {
+                    query.discard();
+                    Err(PrologError::Failure)
+                }
+                Err(PrologError::Exception) => {
+                    query.discard();
+                    Err(PrologError::Exception)
+                }
+            };
+
+            frame.close();
+            result
         } else {
-            Err(PrologError::Failure)
+            let term = context.new_term_ref();
+
+            let get_result =
+                (unsafe { fli::PL_get_dict_key(key_atom, self.term_ptr(), term.term_ptr()) }
+                    as i32)
+                    != 0;
+            let result = if unsafe { fli::pl_default_exception() != 0 } {
+                Err(PrologError::Exception)
+            } else if get_result {
+                term.get()
+            } else {
+                Err(PrologError::Failure)
+            };
+
+            unsafe {
+                term.reset();
+            }
+
+            result
         };
 
-        unsafe {
-            term.reset();
-        }
-
+        std::mem::drop(alloc);
         result
     }
 
@@ -303,17 +346,49 @@ impl<'a> Term<'a> {
         }
         let (key_atom, alloc) = key.atom_ptr();
 
-        let result =
-            unsafe { fli::PL_get_dict_key(key_atom, self.term_ptr(), term.term_ptr()) != 0 };
-        std::mem::drop(alloc); // purely to get rid of the never-read warning
+        // PL_get_dict_key/3 only accepts atom keys. Integer keys are encoded using a tagged
+        // atom_t representation and must be looked up via get_dict/3.
+        let result = if let Some(int_key) = atom_t_to_small_int(key_atom) {
+            let context = unsafe { unmanaged_engine_context() };
+            let frame = context.open_frame();
+            let key_term = frame.new_term_ref();
+            key_term.unify(int_key).unwrap();
 
-        if unsafe { fli::pl_default_exception() != 0 } {
-            Err(PrologError::Exception)
-        } else if result {
-            Ok(())
+            let query = frame.open(pred! {get_dict/3}, [&key_term, self, term]);
+            let result = match query.next_solution() {
+                Ok(_) => {
+                    query.cut();
+                    Ok(())
+                }
+                Err(PrologError::Failure) => {
+                    query.discard();
+                    Err(PrologError::Failure)
+                }
+                Err(PrologError::Exception) => {
+                    query.discard();
+                    Err(PrologError::Exception)
+                }
+            };
+
+            frame.close();
+            result
         } else {
-            Err(PrologError::Failure)
-        }
+            let result =
+                (unsafe { fli::PL_get_dict_key(key_atom, self.term_ptr(), term.term_ptr()) }
+                    as i32)
+                    != 0;
+
+            if unsafe { fli::pl_default_exception() != 0 } {
+                Err(PrologError::Exception)
+            } else if result {
+                Ok(())
+            } else {
+                Err(PrologError::Failure)
+            }
+        };
+
+        std::mem::drop(alloc);
+        result
     }
 
     /// Get the tag of this dictionary.
@@ -329,7 +404,7 @@ impl<'a> Term<'a> {
     pub fn get_dict_tag(&self) -> PrologResult<Option<Atom>> {
         self.assert_term_handling_possible();
 
-        if unsafe { fli::PL_is_dict(self.term_ptr()) == 0 } {
+        if (unsafe { fli::PL_is_dict(self.term_ptr()) } as i32) == 0 {
             Err(PrologError::Failure)
         } else if let Some(atom) = attempt_opt(self.get_arg(1))? {
             Ok(Some(atom))
@@ -352,7 +427,7 @@ impl<'a> Term<'a> {
             panic!("terms being unified are not part of the same engine");
         }
 
-        if unsafe { fli::PL_is_dict(self.term_ptr()) == 0 } {
+        if (unsafe { fli::PL_is_dict(self.term_ptr()) } as i32) == 0 {
             Err(PrologError::Failure)
         } else {
             self.unify_arg(1, term)
@@ -362,7 +437,7 @@ impl<'a> Term<'a> {
     /// Returns true if this term reference holds a dictionary.
     pub fn is_dict(&self) -> bool {
         self.assert_term_handling_possible();
-        unsafe { fli::PL_is_dict(self.term_ptr()) != 0 }
+        (unsafe { fli::PL_is_dict(self.term_ptr()) } as i32) != 0
     }
 }
 
