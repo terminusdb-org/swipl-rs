@@ -9,6 +9,43 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+/// Type alias for FLI function return values that indicate success/failure.
+///
+/// - SWI-Prolog 9.x: Functions return `c_int` (0 = failure, non-zero = success)
+/// - SWI-Prolog 10.x: Functions return C11 `bool` (maps to Rust `bool`)
+///
+/// This is autodetected at build time based on the installed SWI-Prolog version.
+#[cfg(swipl10)]
+pub type FliResult = bool;
+
+#[cfg(not(swipl10))]
+pub type FliResult = ::std::os::raw::c_int;
+
+/// Extension trait for checking FLI function success.
+///
+/// This provides a portable way to check if an FLI function succeeded,
+/// regardless of whether it returns `c_int` (swipl 9.x) or `bool` (swipl 10.x).
+pub trait FliSuccess {
+    /// Returns `true` if the FLI call succeeded.
+    fn is_success(self) -> bool;
+}
+
+#[cfg(swipl10)]
+impl FliSuccess for bool {
+    #[inline]
+    fn is_success(self) -> bool {
+        self
+    }
+}
+
+#[cfg(not(swipl10))]
+impl FliSuccess for ::std::os::raw::c_int {
+    #[inline]
+    fn is_success(self) -> bool {
+        self != 0
+    }
+}
+
 // we define some extra constants which inexplicably didn't make it into the header
 pub const SH_ERRORS: i32 = 0x01;
 pub const SH_ALIAS: i32 = 0x02;

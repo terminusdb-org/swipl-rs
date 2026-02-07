@@ -3,6 +3,7 @@
 //! SWI-Prolog has a very convenient dictionary implementation. This
 //! module allows one to create dictionaries, as well as extract them.
 use super::fli;
+use super::fli::FliSuccess;
 use super::prelude::*;
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -258,7 +259,7 @@ unsafe impl<'a> Unifiable for DictBuilder<'a> {
         let dict_term = context.new_term_ref();
         self.put(&dict_term);
 
-        let result = (unsafe { fli::PL_unify(dict_term.term_ptr(), term.term_ptr()) } as i32) != 0;
+        let result = unsafe { fli::PL_unify(dict_term.term_ptr(), term.term_ptr()) }.is_success();
         unsafe {
             dict_term.reset();
         };
@@ -280,32 +281,13 @@ impl<'a> Term<'a> {
         let context = unsafe { unmanaged_engine_context() };
         let (key_atom, alloc) = key.atom_ptr();
 
-        // PL_get_dict_key/3 only accepts atom keys. Integer keys are encoded using a tagged
-        // atom_t representation and must be looked up via get_dict/3.
-        let result = if let Some(int_key) = atom_t_to_small_int(key_atom) {
-            let frame = context.open_frame();
-            let key_term = frame.new_term_ref();
-            let value_term = frame.new_term_ref();
-            key_term.unify(int_key).unwrap();
-
-            let query = frame.open(pred! {get_dict/3}, [&key_term, self, &value_term]);
-            let result = match query.next_solution() {
-                Ok(_) => {
-                    query.cut();
-                    value_term.get()
-                }
-                Err(PrologError::Failure) => {
-                    query.discard();
-                    Err(PrologError::Failure)
-                }
-                Err(PrologError::Exception) => {
-                    query.discard();
-                    Err(PrologError::Exception)
-                }
-            };
-
-            frame.close();
-            result
+        let get_result =
+            unsafe { fli::PL_get_dict_key(key_atom, self.term_ptr(), term.term_ptr()) }
+                .is_success();
+        let result = if unsafe { fli::pl_default_exception() != 0 } {
+            Err(PrologError::Exception)
+        } else if get_result {
+            term.get()
         } else {
             let term = context.new_term_ref();
 
@@ -328,7 +310,11 @@ impl<'a> Term<'a> {
             result
         };
 
-        std::mem::drop(alloc);
+        unsafe {
+            term.reset();
+        }
+
+        std::mem::drop(alloc); // purely to get rid of the never-read warning
         result
     }
 
@@ -404,7 +390,7 @@ impl<'a> Term<'a> {
     pub fn get_dict_tag(&self) -> PrologResult<Option<Atom>> {
         self.assert_term_handling_possible();
 
-        if (unsafe { fli::PL_is_dict(self.term_ptr()) } as i32) == 0 {
+        if !unsafe { fli::PL_is_dict(self.term_ptr()) }.is_success() {
             Err(PrologError::Failure)
         } else if let Some(atom) = attempt_opt(self.get_arg(1))? {
             Ok(Some(atom))
@@ -427,7 +413,7 @@ impl<'a> Term<'a> {
             panic!("terms being unified are not part of the same engine");
         }
 
-        if (unsafe { fli::PL_is_dict(self.term_ptr()) } as i32) == 0 {
+        if !unsafe { fli::PL_is_dict(self.term_ptr()) }.is_success() {
             Err(PrologError::Failure)
         } else {
             self.unify_arg(1, term)
@@ -437,7 +423,7 @@ impl<'a> Term<'a> {
     /// Returns true if this term reference holds a dictionary.
     pub fn is_dict(&self) -> bool {
         self.assert_term_handling_possible();
-        (unsafe { fli::PL_is_dict(self.term_ptr()) } as i32) != 0
+        unsafe { fli::PL_is_dict(self.term_ptr()) }.is_success()
     }
 }
 

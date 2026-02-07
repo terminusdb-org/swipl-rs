@@ -11,6 +11,7 @@ use num_enum::FromPrimitive;
 use crate::engine::*;
 use crate::term::*;
 use crate::{fli, term_getable};
+use crate::fli::FliSuccess;
 
 /// A stream from prolog, used in blob writers.
 pub struct PrologStream {
@@ -72,15 +73,7 @@ term_getable! {
     // origin.
     (WritablePrologStream<'a>, term) => {
         let mut stream: *mut fli::IOSTREAM = std::ptr::null_mut();
-        if (unsafe {
-            fli::PL_get_stream(
-                term.term_ptr(),
-                &mut stream,
-                fli::SH_OUTPUT | fli::SH_UNLOCKED | fli::SH_NOPAIR,
-            )
-        } as i32)
-            != 0
-        {
+        if unsafe { fli::PL_get_stream(term.term_ptr(), &mut stream, fli::SH_OUTPUT|fli::SH_UNLOCKED|fli::SH_NOPAIR) }.is_success() {
             Some(unsafe {WritablePrologStream::new(stream) })
         }
         else {
@@ -281,15 +274,7 @@ term_getable! {
     // origin.
     (ReadablePrologStream<'a>, term) => {
         let mut stream: *mut fli::IOSTREAM = std::ptr::null_mut();
-        if (unsafe {
-            fli::PL_get_stream(
-                term.term_ptr(),
-                &mut stream,
-                fli::SH_INPUT | fli::SH_UNLOCKED | fli::SH_NOPAIR,
-            )
-        } as i32)
-            != 0
-        {
+        if unsafe { fli::PL_get_stream(term.term_ptr(), &mut stream, fli::SH_INPUT|fli::SH_UNLOCKED|fli::SH_NOPAIR) }.is_success() {
             Some(unsafe {ReadablePrologStream::new(stream) })
         }
         else {

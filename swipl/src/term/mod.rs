@@ -33,6 +33,7 @@ use super::atom::*;
 use super::context::*;
 use super::engine::*;
 use super::fli::*;
+use super::fli::FliSuccess;
 use super::record::*;
 use super::result::*;
 use std::cmp::{Ordering, PartialOrd};
@@ -120,25 +121,25 @@ impl<'a> Term<'a> {
     /// Returns true if this term reference holds a variable.
     pub fn is_var(&self) -> bool {
         self.assert_term_handling_possible();
-        (unsafe { PL_is_variable(self.term) } as i32) != 0
+        unsafe { PL_is_variable(self.term) }.is_success()
     }
 
     /// Returns true if this term reference holds an atom.
     pub fn is_atom(&self) -> bool {
         self.assert_term_handling_possible();
-        (unsafe { PL_is_atom(self.term) } as i32) != 0
+        unsafe { PL_is_atom(self.term) }.is_success()
     }
 
     /// Returns true if this term reference holds a string.
     pub fn is_string(&self) -> bool {
         self.assert_term_handling_possible();
-        (unsafe { PL_is_string(self.term) } as i32) != 0
+        unsafe { PL_is_string(self.term) }.is_success()
     }
 
     /// Returns true if this term reference holds an integer.
     pub fn is_integer(&self) -> bool {
         self.assert_term_handling_possible();
-        (unsafe { PL_is_integer(self.term) } as i32) != 0
+        unsafe { PL_is_integer(self.term) }.is_success()
     }
 
     /// Reset terms created after this term, including this term itself.
@@ -210,7 +211,7 @@ impl<'a> Term<'a> {
 
         let arg = unsafe { Term::new(arg_ref, self.origin.clone()) };
         let mut result2 = Err(PrologError::Failure);
-        if (result as i32) != 0 {
+        if result.is_success() {
             result2 = arg.unify(unifiable);
         }
 
@@ -321,7 +322,7 @@ impl<'a> Term<'a> {
 
         let arg = unsafe { Term::new(arg_ref, self.origin.clone()) };
         let mut result2 = Err(PrologError::Failure);
-        if (result as i32) != 0 {
+        if result.is_success() {
             result2 = arg.get();
         }
 
@@ -356,7 +357,7 @@ impl<'a> Term<'a> {
         }
 
         let arg = unsafe { Term::new(arg_ref, self.origin.clone()) };
-        let result2 = if (result as i32) != 0 {
+        let result2 = if result.is_success() {
             arg.get_ex()
         } else {
             let context = unsafe { unmanaged_engine_context() };
@@ -393,7 +394,7 @@ impl<'a> Term<'a> {
             return Err(PrologError::Exception);
         }
 
-        let arg = if (result as i32) == 0 {
+        let arg = if !result.is_success() {
             None
         } else {
             let swipl_string_ref = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
@@ -442,7 +443,7 @@ impl<'a> Term<'a> {
             return Err(PrologError::Exception);
         }
 
-        let arg = if (result as i32) == 0 {
+        let arg = if !result.is_success() {
             None
         } else {
             let swipl_string_ref = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
@@ -779,7 +780,7 @@ unifiable! {
         let result = unsafe { PL_unify(self.term, term.term) };
 
         // TODO we should actually properly test for an exception here.
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -801,7 +802,7 @@ unifiable! {
         };
         let result = unsafe { PL_unify_bool(term.term, num) };
 
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -809,7 +810,7 @@ term_getable! {
     (bool, term) => {
         let mut out = 0;
         let result = unsafe { PL_get_bool(term.term, &mut out) };
-        if (result as i32) == 0 {
+        if !result.is_success() {
             None
         }
         else {
@@ -857,7 +858,7 @@ unifiable! {
                 false
             }
             else {
-                (result as i32) != 0
+                result.is_success()
             }
         })}
     }
@@ -865,7 +866,7 @@ unifiable! {
 
 term_getable! {
     (u64, "integer", term) => {
-        if (unsafe { PL_is_integer(term.term) } as i32) == 0 {
+        if !unsafe { PL_is_integer(term.term) }.is_success() {
             return None;
         }
 
@@ -892,7 +893,7 @@ term_getable! {
                 error_term.reset();
                 None
             }
-            else if (result as i32) == 0 {
+            else if !result.is_success() {
                 None
             }
             else {
@@ -912,7 +913,7 @@ unifiable! {
     (self:i64, term) => {
         let result = unsafe { PL_unify_int64(term.term, *self) };
 
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -920,7 +921,7 @@ term_getable! {
     (i64, "integer", term) => {
         let mut out = 0;
         let result = unsafe { PL_get_int64(term.term, &mut out) };
-        if (result as i32) == 0 {
+        if !result.is_success() {
             None
         }
         else {
@@ -939,7 +940,7 @@ unifiable! {
     (self:f64, term) => {
         let result = unsafe { PL_unify_float(term.term, *self) };
 
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -947,7 +948,7 @@ term_getable! {
     (f64, "float", term) => {
         let mut out = 0.0;
         let result = unsafe { PL_get_float(term.term, &mut out) };
-        if (result as i32) == 0 {
+        if !result.is_success() {
             None
         }
         else {
@@ -972,7 +973,7 @@ unifiable! {
         )
         };
 
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -986,7 +987,7 @@ unifiable! {
         )
         };
 
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -1028,7 +1029,7 @@ unifiable! {
     (self: &[u8], term) => {
         let result = unsafe { PL_unify_string_nchars(term.term_ptr(), self.len(), self.as_ptr() as *const std::os::raw::c_char) };
 
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -1037,7 +1038,7 @@ term_getable! {
         let mut string_ptr = std::ptr::null_mut();
         let mut len = 0;
         let result = unsafe { PL_get_string(term.term_ptr(), &mut string_ptr, &mut len) };
-        if (result as i32) == 0 {
+        if !result.is_success() {
             return None;
         }
 
@@ -1062,7 +1063,7 @@ unifiable! {
     (self:Nil, term) => {
         let result = unsafe { PL_unify_nil(term.term_ptr()) };
 
-        (result as i32) != 0
+        result.is_success()
     }
 }
 
@@ -1070,7 +1071,7 @@ term_getable! {
     (Nil, "list", term) => {
         let result = unsafe { PL_get_nil(term.term_ptr()) };
 
-        match (result as i32) != 0 {
+        match result.is_success() {
             true => Some(Nil),
             false => None
         }
@@ -1109,8 +1110,7 @@ where
             // if list unification fails, or head can not be unified with current term,
             // return false early.
             // note: || is short-circuiting OR
-            if (unsafe { PL_unify_list(list.term_ptr(), head.term_ptr(), tail.term_ptr()) } as i32)
-                == 0
+            if !unsafe { PL_unify_list(list.term_ptr(), head.term_ptr(), tail.term_ptr()) }.is_success()
                 || head.unify(t).is_err()
             {
                 return false;
@@ -1126,7 +1126,7 @@ where
             frame2.close();
         }
 
-        let success = (unsafe { PL_unify_nil(list.term_ptr()) } as i32) != 0;
+        let success = unsafe { PL_unify_nil(list.term_ptr()) }.is_success();
         frame.close();
 
         success
@@ -1148,16 +1148,14 @@ unsafe impl<T: TermGetable> TermGetable for Vec<T> {
         list.unify(term).unwrap();
         let mut success = true;
         loop {
-            if (unsafe { PL_get_nil(list.term_ptr()) } as i32) != 0 {
+            if unsafe { PL_get_nil(list.term_ptr()) }.is_success() {
                 break;
             }
 
             let frame2 = frame.open_frame();
             let head = frame2.new_term_ref();
             let tail = frame2.new_term_ref();
-            success = (unsafe { PL_get_list(list.term_ptr(), head.term_ptr(), tail.term_ptr()) }
-                as i32)
-                != 0;
+            success = unsafe { PL_get_list(list.term_ptr(), head.term_ptr(), tail.term_ptr()) }.is_success();
 
             if !success {
                 break;

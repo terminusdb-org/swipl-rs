@@ -6,6 +6,7 @@
 //! automatically on drop of a wrapper object.
 
 use super::fli;
+use super::fli::FliSuccess;
 use super::result::*;
 use super::term::*;
 use crate::{term_getable, term_putable, unifiable};
@@ -33,7 +34,7 @@ impl Record {
     /// Copy the recorded term into the given term reference.
     pub fn recorded(&self, term: &Term) -> PrologResult<()> {
         term.assert_term_handling_possible();
-        unsafe { into_prolog_result((fli::PL_recorded(self.record, term.term_ptr()) as i32) != 0) }
+        unsafe { into_prolog_result(fli::PL_recorded(self.record, term.term_ptr()).is_success()) }
     }
 }
 
@@ -77,7 +78,7 @@ unifiable! {
             let result = fli::PL_unify(term.term_ptr(), extra_term);
             fli::PL_reset_term_refs(extra_term);
 
-            (result as i32) != 0
+            result.is_success()
         }
     }
 }

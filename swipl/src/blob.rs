@@ -220,6 +220,7 @@ use std::os::raw::{c_int, c_void};
 use std::sync::Arc;
 
 use crate::fli;
+use crate::fli::FliSuccess;
 use crate::stream::*;
 use crate::term::*;
 
@@ -346,7 +347,7 @@ pub unsafe fn unify_with_arc<T>(
         blob_definition as *const fli::PL_blob_t as *mut fli::PL_blob_t,
     );
 
-    (result as i32) != 0
+    result.is_success()
 }
 
 /// Unify the term with the given Cloneable, using the given blob
@@ -372,7 +373,7 @@ pub unsafe fn unify_with_cloneable<T: Clone + Sized + Unpin>(
         blob_definition as *const fli::PL_blob_t as *mut fli::PL_blob_t,
     );
 
-    if (result as i32) != 0 {
+    if result.is_success() {
         std::mem::forget(cloned);
         true
     } else {
@@ -395,7 +396,7 @@ pub unsafe fn get_arc_from_term<T>(
     term.assert_term_handling_possible();
 
     let mut blob_type = std::ptr::null_mut();
-    if (fli::PL_is_blob(term.term_ptr(), &mut blob_type) as i32) == 0
+    if !fli::PL_is_blob(term.term_ptr(), &mut blob_type).is_success()
         || blob_definition as *const fli::PL_blob_t != blob_type
     {
         return None;
@@ -409,7 +410,7 @@ pub unsafe fn get_arc_from_term<T>(
         std::ptr::null_mut(),
     );
 
-    if (result as i32) == 0 {
+    if !result.is_success() {
         None
     } else {
         Arc::increment_strong_count(data);
@@ -433,7 +434,7 @@ pub unsafe fn get_cloned_from_term<T: Clone + Sized + Unpin>(
     term.assert_term_handling_possible();
 
     let mut blob_type = std::ptr::null_mut();
-    if (fli::PL_is_blob(term.term_ptr(), &mut blob_type) as i32) == 0
+    if !fli::PL_is_blob(term.term_ptr(), &mut blob_type).is_success()
         || blob_definition as *const fli::PL_blob_t != blob_type
     {
         return None;
@@ -447,7 +448,7 @@ pub unsafe fn get_cloned_from_term<T: Clone + Sized + Unpin>(
         std::ptr::null_mut(),
     );
 
-    if (result as i32) == 0 {
+    if !result.is_success() {
         None
     } else {
         let cloned = (*data).clone();
