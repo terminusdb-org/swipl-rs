@@ -10,6 +10,7 @@
 
 use crate::engine::*;
 use crate::fli::*;
+use crate::fli::FliSuccess;
 
 use lazy_static::*;
 use std::convert::TryInto;
@@ -30,7 +31,7 @@ pub fn activate_main() -> EngineActivation<'static> {
 
 /// Check if SWI-Prolog has been initialized.
 pub fn is_swipl_initialized() -> bool {
-    unsafe { PL_is_initialised(std::ptr::null_mut(), std::ptr::null_mut()) != 0 }
+    unsafe { PL_is_initialised(std::ptr::null_mut(), std::ptr::null_mut()) }.is_success()
 }
 
 /// Panic if SWI-Prolog has not been initialized.
@@ -96,7 +97,7 @@ pub fn initialize_swipl_with_state(state: &'static [u8]) -> Option<EngineActivat
     // https://www.swi-prolog.org/pldoc/doc_for?object=c(%27PL_set_resource_db_mem%27)
     let result = unsafe { PL_set_resource_db_mem(state.as_ptr(), state.len()) };
 
-    if result != TRUE as i32 {
+    if !result.is_success() {
         return None;
     }
 
@@ -204,8 +205,8 @@ pub unsafe fn register_foreign_in_module(
         c_module_ptr,
         c_name.as_ptr(),
         arity as c_int,
-        Some(converted_function_ptr),
+        converted_function_ptr,
         flags.try_into().unwrap(),
         c_meta.map(|m| m.as_ptr()).unwrap_or_else(std::ptr::null),
-    ) == 1
+    ).is_success()
 }

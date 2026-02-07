@@ -10,6 +10,7 @@ use super::atom::*;
 use super::consts::*;
 use super::engine::*;
 use super::fli::*;
+use super::fli::FliSuccess;
 use super::term::*;
 
 use std::convert::TryInto;
@@ -105,7 +106,7 @@ unifiable! {
     (self: Functor, term) => {
         let result = unsafe {PL_unify_compound(term.term_ptr(), self.functor)};
 
-        result != 0
+        result.is_success()
     }
 }
 
@@ -114,7 +115,7 @@ term_getable! {
         let mut functor = 0;
         let result = unsafe { PL_get_functor(term.term_ptr(), &mut functor) };
 
-        if result == 0 {
+        if !result.is_success() {
             None
         }
         else {

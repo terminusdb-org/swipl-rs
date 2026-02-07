@@ -1,5 +1,6 @@
 //! Support for easy text extraction from prolog.
 use crate::fli;
+use crate::fli::FliSuccess;
 use crate::term::*;
 use crate::term_getable;
 
@@ -41,7 +42,7 @@ term_getable! {
                                                  flags) };
 
 
-        if result == 0 {
+        if !result.is_success() {
             None
         }
         else {

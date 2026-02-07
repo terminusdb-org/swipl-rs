@@ -9,6 +9,12 @@ description = "Low-level bindings to the SWI-Prolog Foreign Language Interface"
 repository = "https://github.com/terminusdb-labs/swipl-rs/"
 documentation = "https://terminusdb-labs.github.io/swipl-rs/swipl_fli/"
 
+[features]
+default = []
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(swipl10)"] }
+
 [dependencies]
 [build-dependencies]
 bindgen = "0.69.4"

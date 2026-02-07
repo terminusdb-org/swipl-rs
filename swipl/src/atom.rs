@@ -15,6 +15,7 @@
 use super::context::*;
 use super::engine::*;
 use super::fli::*;
+use super::fli::FliSuccess;
 use super::init::*;
 use super::result::*;
 use super::term::*;
@@ -148,7 +149,7 @@ unifiable! {
     (self:Atom, term) => {
         let result = unsafe { PL_unify_atom(term.term_ptr(), self.atom) };
 
-        result != 0
+        result.is_success()
     }
 }
 
@@ -169,7 +170,7 @@ where
         return Err(PrologError::Exception);
     }
 
-    let arg = if result == 0 {
+    let arg = if !result.is_success() {
         None
     } else {
         let atom = unsafe { Atom::wrap(atom) };
@@ -352,7 +353,7 @@ unifiable! {
             )
         };
 
-        result != 0
+        result.is_success()
     }
 }
 
@@ -383,7 +384,7 @@ where
         return Err(PrologError::Exception);
     }
 
-    let arg = if result == 0 {
+    let arg = if !result.is_success() {
         None
     } else {
         let swipl_string_ref = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
