@@ -222,8 +222,9 @@ unsafe impl<'a> TermPutable for DictBuilder<'a> {
     fn put(&self, term: &Term<'_>) {
         term.assert_term_handling_possible();
         let context = unsafe { unmanaged_engine_context() };
+        let frame = context.open_frame();
 
-        let tag_term = context.new_term_ref();
+        let tag_term = frame.new_term_ref();
         let len = self.entries.len();
         // TODO assert len is not too big
         #[allow(clippy::useless_conversion)]
@@ -234,8 +235,9 @@ unsafe impl<'a> TermPutable for DictBuilder<'a> {
         for (key, value) in self.entries.iter() {
             key_atoms.push(key.atom_ptr());
             if let Some(value) = value {
-                let term = unsafe { Term::new(value_term, context.as_term_origin()) };
-                term.put(&**value)
+                let inner_term = unsafe { Term::new(value_term, context.as_term_origin()) };
+                inner_term
+                    .put(&**value)
                     .expect("term put errored while building dict");
                 value_term += 1;
             }
@@ -251,9 +253,9 @@ unsafe impl<'a> TermPutable for DictBuilder<'a> {
             fli::PL_put_dict(term.term_ptr(), 0, len, key_atoms.as_ptr(), value_terms);
 
             fli::PL_unify_arg(1, term.term_ptr(), tag_term.term_ptr());
-
-            tag_term.reset();
         }
+
+        frame.close();
     }
 }
 
@@ -261,15 +263,14 @@ unsafe impl<'a> Unifiable for DictBuilder<'a> {
     fn unify(&self, term: &Term) -> bool {
         term.assert_term_handling_possible();
         let context = unsafe { unmanaged_engine_context() };
+        let frame = context.open_frame();
 
-        let dict_term = context.new_term_ref();
+        let dict_term = frame.new_term_ref();
         self.put(&dict_term);
 
         let result = unsafe { fli::PL_unify(dict_term.term_ptr(), term.term_ptr()) }.is_success();
-        unsafe {
-            dict_term.reset();
-        };
 
+        frame.close();
         result
     }
 }
@@ -314,7 +315,8 @@ impl<'a> Term<'a> {
             frame.close();
             result
         } else {
-            let term = context.new_term_ref();
+            let frame = context.open_frame();
+            let term = frame.new_term_ref();
 
             let get_result =
                 unsafe { fli::PL_get_dict_key(key_atom, self.term_ptr(), term.term_ptr()) }
@@ -327,10 +329,7 @@ impl<'a> Term<'a> {
                 Err(PrologError::Failure)
             };
 
-            unsafe {
-                term.reset();
-            }
-
+            frame.close();
             result
         };
 
@@ -500,28 +499,31 @@ impl<'a, 'b, T: QueryableContextType> Iterator for DictIterator<'a, 'b, T> {
             None => None,
             Some(count) => {
                 if self.index < count {
-                    let [val_term, key_term] = self.context.new_term_refs();
+                    // val_term is returned to the caller who is responsible for cleanup.
+                    // key_term is extracted within a frame for proper cleanup.
+                    let val_term = self.context.new_term_ref();
                     self.term
                         .unify_arg(self.index * 2 + 2, &val_term)
                         .expect("unify dict val arg failed");
-                    self.term
-                        .unify_arg(self.index * 2 + 3, &key_term)
-                        .expect("unify dict val arg failed");
 
-                    let key;
-                    if key_term.is_atom() {
-                        key = Key::Atom(key_term.get().unwrap());
-                    } else if key_term.is_integer() {
-                        key = Key::Int(key_term.get().unwrap());
-                    } else {
-                        panic!("Encountered term key that was neither an atom nor an integer");
-                    }
+                    let key = {
+                        let frame = self.context.open_frame();
+                        let key_term = frame.new_term_ref();
+                        self.term
+                            .unify_arg(self.index * 2 + 3, &key_term)
+                            .expect("unify dict key arg failed");
 
-                    // we don't need the key term after this, so no
-                    // point in letting it hang around on the stack.
-                    unsafe {
-                        key_term.reset();
-                    }
+                        let key = if key_term.is_atom() {
+                            Key::Atom(key_term.get().unwrap())
+                        } else if key_term.is_integer() {
+                            Key::Int(key_term.get().unwrap())
+                        } else {
+                            panic!("Encountered term key that was neither an atom nor an integer");
+                        };
+
+                        frame.close();
+                        key
+                    };
 
                     self.index += 1;
 
