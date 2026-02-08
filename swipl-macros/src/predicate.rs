@@ -84,6 +84,7 @@ trait ForeignPredicateDefinitionImpl {
         name: Option<&LitStr>,
         module: Option<&LitStr>,
     ) -> TokenStream;
+    #[allow(dead_code)] // TODO: implement frontend generation
     fn generate_frontend(&self) -> TokenStream;
 }
 

@@ -208,7 +208,7 @@ pub enum Atomable<'a> {
 }
 
 impl<'a> From<&'a str> for Atomable<'a> {
-    fn from(s: &str) -> Atomable {
+    fn from(s: &str) -> Atomable<'_> {
         Atomable::Str(s)
     }
 }

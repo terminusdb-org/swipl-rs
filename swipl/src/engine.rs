@@ -125,7 +125,7 @@ impl Engine {
         is_engine_active(self.engine_ptr)
     }
 
-    pub(crate) unsafe fn set_activated(&self) -> EngineActivation {
+    pub(crate) unsafe fn set_activated(&self) -> EngineActivation<'_> {
         if self
             .active
             .compare_exchange(
@@ -150,7 +150,7 @@ impl Engine {
     /// This will panic if an engine is already active on this
     /// thread. Otherwise, it'll return an `EngineActivation` whose
     /// lifetime is bound to this engine.
-    pub fn activate(&self) -> EngineActivation {
+    pub fn activate(&self) -> EngineActivation<'_> {
         if Self::some_engine_active() {
             panic!("tried to activate engine on a thread that already has an active engine");
         }

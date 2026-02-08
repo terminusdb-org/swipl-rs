@@ -219,7 +219,7 @@ impl<'a> DictBuilder<'a> {
 }
 
 unsafe impl<'a> TermPutable for DictBuilder<'a> {
-    fn put(&self, term: &Term) {
+    fn put(&self, term: &Term<'_>) {
         term.assert_term_handling_possible();
         let context = unsafe { unmanaged_engine_context() };
 
