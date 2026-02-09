@@ -208,7 +208,7 @@ pub enum Atomable<'a> {
 }
 
 impl<'a> From<&'a str> for Atomable<'a> {
-    fn from(s: &str) -> Atomable {
+    fn from(s: &str) -> Atomable<'_> {
         Atomable::Str(s)
     }
 }
@@ -277,7 +277,7 @@ impl<'a> IntoAtom for Atomable<'a> {
     }
 }
 
-impl<'a> IntoAtom for &'a str {
+impl IntoAtom for &str {
     fn into_atom(self) -> Atom {
         Atom::new(self)
     }
@@ -330,7 +330,7 @@ impl<'a> AsAtom for Atomable<'a> {
     }
 }
 
-impl<'a> AsAtom for &'a str {
+impl AsAtom for &str {
     fn as_atom(&self) -> Atom {
         self.into_atom()
     }

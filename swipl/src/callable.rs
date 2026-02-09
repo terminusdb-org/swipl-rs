@@ -67,7 +67,7 @@ impl<const N: usize> Callable<N> for LazyCallablePredicate<N> {
     }
 }
 
-impl<'a, const N: usize> Callable<N> for &'a LazyCallablePredicate<N> {
+impl<const N: usize> Callable<N> for &LazyCallablePredicate<N> {
     type ContextType = OpenQuery;
 
     fn open<'b, C: ContextType>(

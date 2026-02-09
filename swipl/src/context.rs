@@ -200,7 +200,7 @@ impl<'a, T: ContextType> Context<'a, T> {
     }
 
     /// Return the engine pointer as a `TermOrigin`, which is used in the construction of a `Term` in unsafe code.
-    pub(crate) fn as_term_origin(&self) -> TermOrigin {
+    pub(crate) fn as_term_origin(&self) -> TermOrigin<'_> {
         unsafe { TermOrigin::new(self.engine_ptr()) }
     }
 
@@ -211,7 +211,7 @@ impl<'a, T: ContextType> Context<'a, T> {
     /// given term_t is indeed from this context. The caller will have
     /// to ensure that the term lives at least as long as this
     /// context.
-    pub unsafe fn wrap_term_ref(&self, term: term_t) -> Term {
+    pub unsafe fn wrap_term_ref(&self, term: term_t) -> Term<'_> {
         self.assert_activated();
         Term::new(term, self.as_term_origin())
     }
@@ -605,7 +605,7 @@ impl<'a, C: FrameableContextType> Context<'a, C> {
     /// will become inactive, until the new context is dropped. This
     /// may happen implicitely, when it goes out of scope, or
     /// explicitely, by calling `close()` or `discard()` on it.
-    pub fn open_frame(&self) -> Context<Frame> {
+    pub fn open_frame(&self) -> Context<'_, Frame> {
         self.assert_activated();
         let fid = unsafe { PL_open_foreign_frame() };
 
@@ -640,7 +640,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     ///
     /// The term ref takes on the lifetime of the Context reference,
     /// ensuring that it cannot outlive the context that created it.
-    pub fn new_term_ref(&self) -> Term {
+    pub fn new_term_ref(&self) -> Term<'_> {
         self.assert_activated();
         unsafe {
             let term = PL_new_term_ref();
@@ -653,7 +653,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     /// The term refs all take on the lifetime of the Context
     /// reference, ensuring that it cannot outlive the context that
     /// created it.
-    pub fn new_term_refs<const N: usize>(&self) -> [Term; N] {
+    pub fn new_term_refs<const N: usize>(&self) -> [Term<'_>; N] {
         // TODO: this should be a compile time thing ideally
         // TODO: swipl 9.1.19 changed the paramater type to usize
         // if N > i32::MAX as usize {
@@ -687,7 +687,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     /// The term refs all take on the lifetime of the Context
     /// reference, ensuring that it cannot outlive the context that
     /// created it.
-    pub fn new_term_refs_vec(&self, count: usize) -> Vec<Term> {
+    pub fn new_term_refs_vec(&self, count: usize) -> Vec<Term<'_>> {
         #[allow(clippy::useless_conversion)]
         let mut term_ptr = unsafe { PL_new_term_refs(count.try_into().unwrap()) };
         let mut result = Vec::with_capacity(count);
@@ -723,7 +723,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
         &self,
         callable: C,
         args: [&Term; N],
-    ) -> Context<C::ContextType> {
+    ) -> Context<'_, C::ContextType> {
         callable.open(self, None, args)
     }
 
@@ -762,7 +762,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
         callable: C,
         module: Option<Module>,
         args: [&Term; N],
-    ) -> Context<C::ContextType> {
+    ) -> Context<'_, C::ContextType> {
         callable.open(self, module, args)
     }
 
@@ -772,7 +772,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     /// heavy lifting.
     ///
     /// Consider using the `term!` macro instead.
-    pub fn term_from_string(&self, s: &str) -> PrologResult<Term> {
+    pub fn term_from_string(&self, s: &str) -> PrologResult<Term<'_>> {
         let term = self.new_term_ref();
         let frame = self.open_frame();
 
@@ -892,7 +892,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     /// is known at compile time. If the actual list is larger than
     /// this, only the first N elements are used. If the list is
     /// smaller, the remaining terms in the array remain variables.
-    pub fn term_list_array<const N: usize>(&self, list: &Term) -> [Term; N] {
+    pub fn term_list_array<const N: usize>(&self, list: &Term) -> [Term<'_>; N] {
         self.assert_activated();
         // allocate these terms inside the scope of this context
         let terms = self.new_term_refs();
@@ -924,7 +924,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     /// to iterate over the elements, or don't care about garbage
     /// terms being created, consider using
     /// [term_list_iter](Context::term_list_iter).
-    pub fn term_list_vec(&self, list: &Term) -> Vec<Term> {
+    pub fn term_list_vec(&self, list: &Term) -> Vec<Term<'_>> {
         self.assert_activated();
         let frame = self.open_frame();
         let count = frame.term_list_iter(list).count();
@@ -951,7 +951,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     /// arity N. If this is true, N terms will be allocated in this
     /// context, unified with the argument terms of the compound, and
     /// returned as an array. If not, this method will fail.
-    pub fn compound_terms<const N: usize>(&self, compound: &Term) -> PrologResult<[Term; N]> {
+    pub fn compound_terms<const N: usize>(&self, compound: &Term) -> PrologResult<[Term<'_>; N]> {
         self.assert_activated();
         if N > (i32::MAX - 1) as usize {
             panic!("requested compound term array too large: {}", N);
@@ -985,7 +985,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
     /// any arity. If this is true, arity terms will be allocated in
     /// this context, unified with the argument terms of the compound,
     /// and returned as a Vec. If not, this method will fail.
-    pub fn compound_terms_vec(&self, compound: &Term) -> PrologResult<Vec<Term>> {
+    pub fn compound_terms_vec(&self, compound: &Term) -> PrologResult<Vec<Term<'_>>> {
         self.assert_activated();
 
         let mut size = 0;
@@ -1018,7 +1018,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
         &self,
         compound: &Term,
         count: usize,
-    ) -> PrologResult<Vec<Term>> {
+    ) -> PrologResult<Vec<Term<'_>>> {
         self.assert_activated();
 
         let mut size = 0;
@@ -1098,7 +1098,7 @@ impl<'a, T: QueryableContextType> Context<'a, T> {
         }
     }
 
-    pub fn into_generic(&self) -> GenericQueryableContext {
+    pub fn into_generic(&self) -> GenericQueryableContext<'_> {
         self.assert_activated();
         self.activated.set(false);
         unsafe { Context::new_activated(self, GenericQueryableContextType, self.engine) }
