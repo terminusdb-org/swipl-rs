@@ -25,6 +25,7 @@ pub type FliResult = ::std::os::raw::c_int;
 ///
 /// This provides a portable way to check if an FLI function succeeded,
 /// regardless of whether it returns `c_int` (swipl 9.x) or `bool` (swipl 10.x).
+#[allow(clippy::wrong_self_convention)]
 pub trait FliSuccess {
     /// Returns `true` if the FLI call succeeded.
     fn is_success(self) -> bool;
