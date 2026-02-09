@@ -177,10 +177,10 @@ pub fn pred(stream: TokenStream) -> TokenStream {
 /// You can return from this block in three ways:
 /// - Return an exception or failure. The predicate will error or fail accordingly and the call block will not be invoked.
 /// - Return `None`. The call block will also not be invoked, but the
-/// predicate will return success. This is useful to handle predicate
-/// inputs which allow your predicate to behave in a semidet manner.
+///   predicate will return success. This is useful to handle predicate
+///   inputs which allow your predicate to behave in a semidet manner.
 /// - Return `Some(object)`. This returns a state object for use in
-/// the call block. After this, the call block will be invoked.
+///   the call block. After this, the call block will be invoked.
 ///
 /// ## Call
 /// The call block is called each time the next result is required from this predicate. This happens on the first call to this predicate (except if the setup returned early as described above), and subsequently upon backtracking. The call block is given a mutable borrow of the state object, and is therefore able to both inspect and modify it.

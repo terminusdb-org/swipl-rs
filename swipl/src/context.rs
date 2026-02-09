@@ -370,7 +370,7 @@ pub unsafe trait ContextType {}
 /// # use swipl::prelude::*;
 /// let engine = Engine::new();
 /// let activation = engine.activate();
-
+///
 /// let context: Context<ActivatedEngine> = activation.into();
 /// // Note: Context<_> would also work as a type annotation
 /// ```
