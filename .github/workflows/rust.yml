@@ -43,10 +43,7 @@ jobs:
       - uses: actions/checkout@v3
       - run: sudo apt update && sudo apt install software-properties-common -y
       - run: sudo apt-add-repository ppa:swi-prolog/stable -y && sudo apt update && sudo apt install swi-prolog-nox
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -Dwarnings
+      - run: cargo clippy --all-features -- -Dwarnings
 
   build:
     needs:
