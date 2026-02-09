@@ -225,9 +225,9 @@ impl<'a, C: QueryableContextType> serde::Serializer for Serializer<'a, C> {
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
         attempt_unify(&self.term, atom!("none"))
     }
-    fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
+    fn serialize_some<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         if attempt(self.term.unify(functor!("some/1")))? {
             let [term] = attempt_opt(self.context.compound_terms(&self.term))?.expect("having just unified the functor some/1, retrieving its argument list should have been possible");
@@ -260,13 +260,13 @@ impl<'a, C: QueryableContextType> serde::Serializer for Serializer<'a, C> {
     ) -> Result<Self::Ok, Self::Error> {
         attempt_unify(&self.term, Atom::new(variant))
     }
-    fn serialize_newtype_struct<T: ?Sized>(
+    fn serialize_newtype_struct<T>(
         self,
         name: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         if name == ATOM_STRUCT_NAME {
             value.serialize(AtomEmitter(self.term))
@@ -283,7 +283,7 @@ impl<'a, C: QueryableContextType> serde::Serializer for Serializer<'a, C> {
             Err(Error::UnificationFailed)
         }
     }
-    fn serialize_newtype_variant<T: ?Sized>(
+    fn serialize_newtype_variant<T>(
         self,
         _name: &'static str,
         _variant_index: u32,
@@ -291,7 +291,7 @@ impl<'a, C: QueryableContextType> serde::Serializer for Serializer<'a, C> {
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         if attempt(self.term.unify(Functor::new(variant, 1)))? {
             let [term] = attempt_opt(self.context.compound_terms(&self.term))?.expect("having just unified the functor with arity 1, retrieving its argument list should have been possible");
@@ -539,9 +539,9 @@ impl<'a> ser::Serializer for AtomEmitter<'a> {
         Err(Error::ValueNotOfExpectedType("string"))
     }
 
-    fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<Self::Ok, Self::Error>
+    fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         Err(Error::ValueNotOfExpectedType("string"))
     }
@@ -563,18 +563,18 @@ impl<'a> ser::Serializer for AtomEmitter<'a> {
         Err(Error::ValueNotOfExpectedType("string"))
     }
 
-    fn serialize_newtype_struct<T: ?Sized>(
+    fn serialize_newtype_struct<T>(
         self,
         _name: &'static str,
         _value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         Err(Error::ValueNotOfExpectedType("string"))
     }
 
-    fn serialize_newtype_variant<T: ?Sized>(
+    fn serialize_newtype_variant<T>(
         self,
         _name: &'static str,
         _variant_index: u32,
@@ -582,7 +582,7 @@ impl<'a> ser::Serializer for AtomEmitter<'a> {
         _value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         Err(Error::ValueNotOfExpectedType("string"))
     }
@@ -647,9 +647,9 @@ impl<'a, C: QueryableContextType> ser::SerializeSeq for SerializeSeq<'a, C> {
 
     type Error = Error;
 
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         if let Some((head, tail)) = attempt_opt(self.context.unify_list_functor(&self.term))? {
             let inner_serializer =
@@ -680,9 +680,9 @@ impl<'a, C: QueryableContextType> ser::SerializeTuple for SerializeTuple<'a, C> 
 
     type Error = Error;
 
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         self.len -= 1;
         if self.len == 0 {
@@ -722,9 +722,9 @@ pub struct SerializeNamedTuple<'a, C: QueryableContextType> {
 }
 
 impl<'a, C: QueryableContextType> SerializeNamedTuple<'a, C> {
-    fn serialize_field_impl<T: ?Sized>(&mut self, value: &T) -> Result<(), Error>
+    fn serialize_field_impl<T>(&mut self, value: &T) -> Result<(), Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         self.pos += 1;
 
@@ -745,9 +745,9 @@ impl<'a, C: QueryableContextType> ser::SerializeTupleStruct for SerializeNamedTu
 
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         self.serialize_field_impl(value)
     }
@@ -762,9 +762,9 @@ impl<'a, C: QueryableContextType> ser::SerializeTupleVariant for SerializeNamedT
 
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         self.serialize_field_impl(value)
     }
@@ -813,9 +813,9 @@ impl<'a, C: QueryableContextType> ser::SerializeMap for SerializeMap<'a, C> {
 
     type Error = Error;
 
-    fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<(), Self::Error>
+    fn serialize_key<T>(&mut self, key: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         let serializer = KeyEmitter {
             key: &mut self.last_key,
@@ -825,9 +825,9 @@ impl<'a, C: QueryableContextType> ser::SerializeMap for SerializeMap<'a, C> {
         key.serialize(serializer)
     }
 
-    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    fn serialize_value<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         let val_term = self.context.new_term_ref();
         let serializer =
@@ -854,13 +854,13 @@ impl<'a, C: QueryableContextType> ser::SerializeStruct for SerializeMap<'a, C> {
 
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(
+    fn serialize_field<T>(
         &mut self,
         key: &'static str,
         value: &T,
     ) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         let value_term = self.context.new_term_ref();
         let serializer = Serializer::new_with_config(
@@ -887,13 +887,13 @@ impl<'a, C: QueryableContextType> ser::SerializeStructVariant for SerializeMap<'
 
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(
+    fn serialize_field<T>(
         &mut self,
         key: &'static str,
         value: &T,
     ) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         let value_term = self.context.new_term_ref();
         let serializer = Serializer::new_with_config(
@@ -1048,9 +1048,9 @@ impl<'a> ser::Serializer for KeyEmitter<'a> {
         Err(Error::ValueNotOfExpectedType("key"))
     }
 
-    fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<Self::Ok, Self::Error>
+    fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         Err(Error::ValueNotOfExpectedType("key"))
     }
@@ -1072,13 +1072,13 @@ impl<'a> ser::Serializer for KeyEmitter<'a> {
         Err(Error::ValueNotOfExpectedType("key"))
     }
 
-    fn serialize_newtype_struct<T: ?Sized>(
+    fn serialize_newtype_struct<T>(
         mut self,
         name: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         // could be an atom!
         if name == ATOM_STRUCT_NAME {
@@ -1089,7 +1089,7 @@ impl<'a> ser::Serializer for KeyEmitter<'a> {
         }
     }
 
-    fn serialize_newtype_variant<T: ?Sized>(
+    fn serialize_newtype_variant<T>(
         self,
         _name: &'static str,
         _variant_index: u32,
@@ -1097,7 +1097,7 @@ impl<'a> ser::Serializer for KeyEmitter<'a> {
         _value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ?Sized + Serialize,
     {
         Err(Error::ValueNotOfExpectedType("key"))
     }
