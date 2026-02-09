@@ -18,7 +18,7 @@ pub fn arc_blob_macro(
 
     let name_lit = attr_def.name;
     let name = name_lit.value();
-    let mut name_bytes = Vec::with_capacity(name.as_bytes().len() + 1);
+    let mut name_bytes = Vec::with_capacity(name.len() + 1);
     name_bytes.extend_from_slice(name.as_bytes());
     name_bytes.push(0);
     let name_bytes_lit = LitByteStr::new(&name_bytes, Span::call_site());
@@ -153,7 +153,7 @@ pub fn wrapped_arc_blob_macro(item: proc_macro::TokenStream) -> proc_macro::Toke
     let item_def = parse_macro_input!(item as WrappedArcBlobItem);
     let name_lit = item_def.name;
     let name = name_lit.value();
-    let mut name_bytes = Vec::with_capacity(name.as_bytes().len() + 1);
+    let mut name_bytes = Vec::with_capacity(name.len() + 1);
     name_bytes.extend_from_slice(name.as_bytes());
     name_bytes.push(0);
     let name_bytes_lit = LitByteStr::new(&name_bytes, Span::call_site());
@@ -338,7 +338,7 @@ pub fn clone_blob_macro(
 
     let name_lit = attr_def.name;
     let name = name_lit.value();
-    let mut name_bytes = Vec::with_capacity(name.as_bytes().len() + 1);
+    let mut name_bytes = Vec::with_capacity(name.len() + 1);
     name_bytes.extend_from_slice(name.as_bytes());
     name_bytes.push(0);
     let name_bytes_lit = LitByteStr::new(&name_bytes, Span::call_site());
